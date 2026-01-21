@@ -205,3 +205,29 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# --- Project Specific: JAX & TPU Artifacts ---
+
+# XLA / HLO Assembly Dumps
+# These are generated when XLA_FLAGS is set to dump intermediate graphs
+*.hlo
+*.hlo.pb
+*.hlo.txt
+xla_dump/
+/tmp/xla_dump/
+
+# JAX Profiler & TensorBoard Traces
+# Massive trace files captured during latency/memory benchmarking
+*.trace
+*.perfetto
+*.json.gz
+tensorboard/
+runs/
+
+# Benchmarking Outputs
+# Local CSVs or JSONs from "run_benchmarks.sh"
+benchmark_results/
+*.prof
+
+# Mac OS
+.DS_Store
