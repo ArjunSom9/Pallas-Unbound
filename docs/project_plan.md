@@ -4,7 +4,7 @@
 
 As Large Language Models (LLMs) continue to grow, the computational limit now lies on the memory bandwith rather than on how much raw computer power they have (i.e. calculation speed). Current methods of compilation used for general-purpose workloads that include many types of programs (making use of XLA), while successful, demonstrate dramatic drops in performance when handling data sets that are quadratic in size, such as the Attention mechanism in long-context modes.
 
-The goal of this project -- Pallas-Flash -- is to build an optimized custome IO aware Attention kernel for TPU v4 and v5 architecture using JAX Pallas to give the user complete control of their GPU computation via bypassing the exisiting heuristics utilized in XLA compilers to allow for complete manipulation of the TPU memory hierarchy.
+The goal of this project -- Pallas-Flash -- is to build an optimized custom IO aware Attention kernel for TPU v4 and v5 (v5p-8) architecture using JAX Pallas to give the user complete control of their GPU computation via bypassing the exisiting heuristics utilized in XLA compilers to allow for complete manipulation of the TPU memory hierarchy.
 
 Through coordination of data transfers between High Bandwith Memory (HBM) and the embedded Vector Memory (VMEM), this project will create a tiled, fused Attention operation (FlashAttention) that reduces the need to access off-chip memory. In addition to optimizing training for FlashAttention, the project will also implement "FlashDecoding", an inference kernel that can be used to load Key-Value (KV) data in parallel thereby mitigating the bottlenecks that arise from single-batch decoding typically seen in production systems.
 
