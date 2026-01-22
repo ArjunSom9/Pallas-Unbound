@@ -1,4 +1,4 @@
-# Dependecy management (jax[tpu], flax, chex)
+# Dependencies: jax[tpu], flax, chex, libtpu
 
 [build-system]
 requires = ["setuptools>=61.0"]
