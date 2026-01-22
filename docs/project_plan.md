@@ -21,3 +21,8 @@ Completing this plan will result in producing three major items:
 3. **v5e Benchmarking Suite:** A formal methodology for validating "tokens per second per dollar" that confirms that the custome kernel provides legitimate advantages over traditionally used efficiency tier hardware from an economic and performance standpoint.
 
 ---
+
+## 2. Technical Prerequisites: The TPU v5e Hardware Landscape 
+
+To create a kernel that achieves near-maximum performance on the TPU v5e, it is necessary to move away from any prior assumptions about the v4 or v5p architecture. The TPU v5e is not just an under-clocked version of the TPU v4; rather, it is an entirely new microarchitecture built around desing decisions optimized to maximizie compute to power. To effectively program for the TPU v5e using Pallas, we must first understand how these differences affect programming for the TPU v5e.
+
