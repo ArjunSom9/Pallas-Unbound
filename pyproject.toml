@@ -5,16 +5,16 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pallas-flash-tpu"
+name = "pallas-flash-v5e"
 version = "0.1.0"
-description = "High-Performance IO-Aware Attention Kernels for TPU v5e"
+description = "High-Performance IO-Aware Attention Kernels for TPU v5e Architecture"
 readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "Apache-2.0"}
 authors = [
-  {name = "Arjun Som", email = "arjunsom29@gmail.com"}
+    {name = "Your Name", email = "your.email@example.com"}
 ]
-keywords = ["jax", "tpu", "pallas", "flash-attention", "kernel-optimization"]
+keywords = ["jax", "tpu", "pallas", "flash-attention", "kernel-optimization", "v5e"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
@@ -24,27 +24,27 @@ classifiers = [
 
 # Core dependencies required to run the kernel
 dependencies = [
-    "jax>=0.4.23",       # Pallas features require recent JAX
+    "jax>=0.4.23",        # Pallas features require recent JAX
     "jaxlib>=0.4.23",
-    "flax>=0.8.0",       # High-level neural network primitives
-    "einops>=0.7.0",     # For readable tensor reshaping
-    "chex>=0.1.85",      # Utilities for testing JAX code (Google standard)
+    "flax>=0.8.0",        # High-Level neural network primitives
+    "einops>=0.7.0",      # For readable tensor reshaping
+    "chex>=0.1.85",       # Utilities for testing JAX code (Google standard)
     "numpy>=1.24.0"
 ]
 
 [project.optional-dependencies]
 # Tools for development, analysis, and visualization
 dev = [
-    "pytest>=7.4.0",     # Test runner
-    "matplotlib>=3.8.0", # For Roofline plots
-    "tensorboard>=2.15.0", # For memory traces
-    "black>=23.0.0",     # Code formatting
-    "isort>=5.12.0",     # Import sorting
-    "pandas>=2.1.0"      # For analyzing benchmark CSVs
+    "pytest>=7.4.0",      # Test runner
+    "matplotlib>=3.8.0",  # For Roofline plots
+    "tensorboard>=2.15.0",# For memory traces
+    "black>=23.0.0",      # Code formatting
+    "isort>=5.12.0",      # Import sorting
+    "pandas>=2.1.0"       # For analyzing benchmark CSVs
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/ArjunSom9/Pallas-Unbound"
+"Homepage" = "https://github.com/yourusername/pallas-flash-v5e"
 
 # --- Tool Configuration ---
 
@@ -59,7 +59,7 @@ testpaths = [
 python_files = "test_*.py"
 
 # 2. Black Configuration (The formatter)
-# Ensures code looks uniform (line length 88 is standard)
+# Ensures code looks uniform (Line Length 88 is standard)
 [tool.black]
 line-length = 88
 target-version = ['py39']
