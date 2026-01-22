@@ -26,3 +26,10 @@ Completing this plan will result in producing three major items:
 
 To create a kernel that achieves near-maximum performance on the TPU v5e, it is necessary to move away from any prior assumptions about the v4 or v5p architecture. The TPU v5e is not just an under-clocked version of the TPU v4; rather, it is an entirely new microarchitecture built around desing decisions optimized to maximizie compute to power. To effectively program for the TPU v5e using Pallas, we must first understand how these differences affect programming for the TPU v5e.
 
+### 2.1 The Compute Hierarchy: Single-Core TensorCore Architecture 
+
+The core architectural varaition between the v5e and v4/v5p modles is the difference in the core configuration. The TPU v4 and v5p use a dual core model, where there are two TensorCores on one chip, which is often referred to as a Megacore by the software stack and allows co-use of the HBM bandwith. The TPU v5e, on the other hand, has one TensorCore per chip. This simplified architecture has very far-reaching consequences for the way that Pallas kernels are developed.
+
+* **Simplified Grid Mapping:** The developers will not have to deal with the complications of intra-chip communication amongst the paired cores or manage the complexities of the dimension_map for sub-cores within a Megacore. The mapping will be a 1 to 1 relationship between the physical chip and the Pallas program instance.
+
+* **Dedicated Resources:** Each TensorCore is able to access its own 16 GiB of HBM and its own ICI (inter-chip interconnect) link. This removes any contention for resources between cores on the same die.
