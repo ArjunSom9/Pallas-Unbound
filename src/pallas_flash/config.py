@@ -47,6 +47,7 @@ class TPUv5eSpecs:
 
     # Implement the Topology
     # Set ICI to 400 GBps but in Bps
+    ICI_BANDWITH_BYTES_PER_SEC: float = 400 * 1e9
 
 # Instantiate singleton configuration
 
