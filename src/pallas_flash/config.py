@@ -21,20 +21,23 @@ References:
 # Code Analysis: https://docs.google.com/document/d/1XLzEYV69WIB1D52nOx8WCfihbsdaok1jceqCsyY7gWM/edit?tab=t.0
 
 # Import dataclass from dataclasses
+from dataclasses import dataclass
 
 # Use dataclass decorator with frozen parameter set to True to make it immutable.
+@dataclass(frozen=True)
 # Create a class called TPUv5eSpecs
+class TPUv5eSpecs:
+    """Immutable hardware specifications for the Google Cloud TPU v5e"""
     
     # Implement the memory hierarchy
-    
     # Set HBM Bandwith to 819 GBps in Bps
+    HBM_BANDWITH_BYTES_PER_SEC: float = 819 * 1e9
 
     # Set VMEM Capacity as 128 MiB in B
-
+    VMEM_CAPACITY_BYTES: int = 128 * 1024 * 1024
 
 
     # Implement the compute capability
-    
     # Set peak throughput (bfloat16) to 197 TFLOPs but in FLOPs
 
     # Set MXU size to 128
@@ -42,7 +45,6 @@ References:
 
 
     # Implement the Topology
-    
     # Set ICI to 400 GBps but in Bps
 
 # Instantiate singleton configuration
