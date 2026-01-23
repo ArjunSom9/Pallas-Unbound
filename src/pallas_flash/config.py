@@ -50,5 +50,6 @@ class TPUv5eSpecs:
     ICI_BANDWITH_BYTES_PER_SEC: float = 400 * 1e9
 
 # Instantiate singleton configuration
+v5e_specs = TPUv5eSpecs()
 
 # Implement helper accessors for cleaner imports in tiling logic
