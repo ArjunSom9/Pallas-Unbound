@@ -39,9 +39,10 @@ class TPUv5eSpecs:
 
     # Implement the compute capability
     # Set peak throughput (bfloat16) to 197 TFLOPs but in FLOPs
+    PEAK_FLOPS_BF16: float = 197 * 1e12
 
     # Set MXU size to 128
-
+    MXU_SIZE: int = 128
 
 
     # Implement the Topology
