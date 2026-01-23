@@ -53,3 +53,5 @@ class TPUv5eSpecs:
 v5e_specs = TPUv5eSpecs()
 
 # Implement helper accessors for cleaner imports in tiling logic
+VMEM_LIMIT = v5e_specs.VMEM_CAPACITY_BYTES
+MXU_SIZE = v5e_specs.MXU_SIZE
