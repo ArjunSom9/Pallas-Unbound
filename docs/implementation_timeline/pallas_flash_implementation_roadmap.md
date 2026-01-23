@@ -5,6 +5,9 @@
 ```text
 pallas-flash-tpu/
 ├── pyproject.toml              # Dependency management (jax[tpu], flax, chex).
+├── src/
+│   └── pallas_flash/
+│       ├── config.py           # Hardware constants (TPU v5e-4 HBM BW, VPU FLOPs)
 
 ```
 
@@ -17,3 +20,7 @@ pallas-flash-tpu/
 1. `pyproject.toml`
 
 * **Why:** Sets up the environment with `jax[tpu]`. We need the runtime before anything else.
+
+2. `src/pallas_flash/config.py`
+
+* **Why:** Defines the hardware constants (HBM Bandwidth = 1.2 TB/s, Matrix Unit dimensions = 128x128). These constants are required for the roofline model.
