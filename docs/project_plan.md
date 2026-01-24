@@ -42,7 +42,7 @@ The TPU is powered by the Matrix Multiply Unit that continues to serve as the co
 
 * **Dimensions:** The v5e retains the original $128 \times 128$ dimensions found in previous versions of the TPU (v4 and v4). This dimension is what's called an "atomic" tile size for the Pallas programming environment. It essentially means that any kernel that runs on the TPU must be configured to use matrix dimensions that are multiples of 128. Matrices that have a dimension of 129 for example, will be padded to a dimension of 256, which causes the hardware to lose 50% of its throughput due to the double padding. The programming environment requires that the Pallas flash kernel enfore strict alignment to 128 for all tile sizes ($B_c, B_r$).
 
-* **Throughput:** The v5e has a peak throughput of 197 TFLOPS per chip when using bfloat16 precision. This is consiberably less than the v4's 275 TFLOPS, but the benefit of the v5e is that is it able to maintain relatively high utilization across smaller batches that are designed to be used for inference purposes.
+* **Throughput:** The v5e has a peak throughput of 197 TFLOPs per chip when using bfloat16 precision. This is consiberably less than the v4's 275 TFLOPs, but the benefit of the v5e is that is it able to maintain relatively high utilization across smaller batches that are designed to be used for inference purposes.
 
 * **MXU Count:** Each v5e TensorCore has four MXUs, providing the potential for very high levels of parallel matrix multipy capability. By properly tiling the kernel, multiple attention head blocks can be processed simultaneously.
 
@@ -75,9 +75,9 @@ Therefore, the available 128 MiB of VMEM is an enormous amount of VMEM in compar
 
 * The tiling strategy allows for larger $1024 \times 128$ Query blocks to be loaded into VMEM and always be kept resident within the TPU v5e, rather than smaller $128 \times 128$ blocks used within a GPU.
 
-* The ability to reuse these preloaded resident Query blocks against streaming Key/Value blocks from being loaded into HBM allows for the increase of Arithmetic Intensity (FLOPS per byte transferred).
+* The ability to reuse these preloaded resident Query blocks against streaming Key/Value blocks from being loaded into HBM allows for the increase of Arithmetic Intensity (FLOPs per byte transferred).
 
-* This increase is essential to allow the TPU v5e to reach the maximum level of compute performance (197 TFLOPS) while staying constrained by the limited amount of HBM bandwidth (819 GB/s).
+* This increase is essential to allow the TPU v5e to reach the maximum level of compute performance (197 TFLOPs) while staying constrained by the limited amount of HBM bandwidth (819 GB/s).
 
 ### 2.3 Topology: The $2 \times 2$ Mesh and Interconnects 
 
@@ -116,3 +116,12 @@ Pure JAX can be applied in conjuntion with XLA by decorating the code `baseline_
 It should be noted that this is significantly greater than the maximum available on a single v5e chip, which is a maximum of 16 GB HBM. Even when using bfloat16 (34GB), there is not enough memory for this sequence length to be processed successfully; this, the baseline should fail with OOM at approximately 8k-12k in this case (Needs to be tested).
 
 2.  **Bandwidth Saturation:** The standard implementation runs out of memory (OOM) at lower sequence lengths (less than approximately 12k), requiring the repeated loading and unloading of matrices of shape $N \times N$ (calculation, masking, softmax, and multiplication). The I/O generated will consume the vast amount of available 819 GB/s bandwidth on the v5e and will therefore create a bottleneck in execution time and enable the MXUs to run idle while waiting for I/O operations to complete.
+
+### 3.3 Benchmarking Methodology
+
+In order to demonstrate scientifically the basis of our belief in "Why this wins" we will measure the following:
+
+* **Latency** as wall-clock time per step after calling the method `block_until_ready()`. Latency will be measure using the method `time.perf_counter()`.
+* **Throughput** as tokens processed in one second.
+* **HBM Bandwidth Utilization**, by monitoring the memory bus using `jax.profiler`, we will know if we have a memory-bound workload by looking at the relationship between a saturated memory bus and low MXU.
+* **Model FLOPs Utilization (MFU):** the ratio of FLOPs that were achieved divided by the theoretical peak of 197 TFLOPs.
