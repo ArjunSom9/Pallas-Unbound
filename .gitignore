@@ -219,6 +219,7 @@ xla_dump/
 # JAX Profiler & TensorBoard Traces
 # Massive trace files captured during latency/memory benchmarking
 *.trace
+*.rtrace
 *.perfetto
 *.json.gz
 tensorboard/
