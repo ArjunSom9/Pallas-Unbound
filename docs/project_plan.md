@@ -102,3 +102,17 @@ $$ \text{Attention}(Q, K, V) = \text{softmax}\left(\frac{Q K^T}{\sqrt{d_k}} + M\
 Where:
 * $Q, K, V \in \mathbb{R}^{B \times H \times N \times D}$ (Batch, Heads, Sequence Length, Head Dimension). 
 * $M$ is the causal mask (lower triangular matrix of zeros, upper triangular of $-\infty$). 
+
+### 3.2 Implementation Strategy: Pure JAX with XLA
+
+Pure JAX can be applied in conjuntion with XLA by decorating the code `baseline_mha.py` with the `@jax.jit` decorator to compile the graph using XLA.
+
+**Projected Failure Modes on v5e:** 
+
+1.  **Memory Explosion (OOM):** The standard implementation requires computing the `logits = jnp.matmul(Q, K.T)` which generates an intermediatte tensor of shape $(B, H, N, N)$ as it relates to shape $(B, H)$ from the original input tensor. For example, given a sequence length of $N=32,768$, a batch size of $B=1$, and heads $H=16, the equivalent float32 memory required is approximately:
+
+    $$ 1 \times 16 \times 32768^2 \times 4 \text{ bytes} \approx 68 \text{ GB} $$ 
+
+It should be noted that this is significantly greater than the maximum available on a single v5e chip, which is a maximum of 16 GB HBM. Even when using bfloat16 (34GB), there is not enough memory for this sequence length to be processed successfully; this, the baseline should fail with OOM at approximately 8k-12k in this case (Needs to be tested).
+
+2.  **Bandwidth Saturation:** The standard implementation runs out of memory (OOM) at lower sequence lengths (less than approximately 12k), requiring the repeated loading and unloading of matrices of shape $N \times N$ (calculation, masking, softmax, and multiplication). The I/O generated will consume the vast amount of available 819 GB/s bandwidth on the v5e and will therefore create a bottleneck in execution time and enable the MXUs to run idle while waiting for I/O operations to complete.
