@@ -29,7 +29,10 @@ dependencies = [
     "flax>=0.8.0",        # High-Level neural network primitives
     "einops>=0.7.0",      # For readable tensor reshaping
     "chex>=0.1.85",       # Utilities for testing JAX code (Google standard)
-    "numpy>=1.24.0"
+    "numpy>=1.24.0",
+    "optax>=0.1.9",       # Optimization library (standard with Flax)
+    "tqdm>=4.66.0",       # Progress bars for benchmarks
+    "libtpu-nightly"      # TPU Runtime (Required for v5e)
 ]
 
 [project.optional-dependencies]
