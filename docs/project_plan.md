@@ -8,7 +8,7 @@ The initial scope of this project focused on high-powered TPU v4 and v5p trainin
 
 The move to this new hardware will create some negative impacts: reduced High Bandwith Memory (HBM) and less total memory bandwith. The new "Pallas-Flash" product will transition from a model focused on "supercomputer utilization" to one that is primarily concerned with "extreme resource efficiency".
 
-This project plan representes the update technical architecture of a purpose-built, IO-aware Attention kernel, built specifically for TPU v5e-4. The core technical focus of the project remains the same as stated above, which is to bypass the XLA (Accelerated Linear Algebra) compiler's high-level heuristics and work directly with the TPU memory structure via JAX Pallas. By controlling the movement of data explicitly between the HBM and on-chip VMEM, we expect to complete the implementation of a tiled, fused FlashAttention-2 operation and avoid using off-chip memory entirely. Thus, we anticipate substantially fewer memory-related bandwith constraints on the v5e system than previously encountered with our earlier v5e nodes.
+This project plan representes the update technical architecture of a purpose-built, IO-aware Attention kernel, built specifically for TPU v5e-4. The core technical focus of the project remains the same as stated above, which is to bypass the XLA (Accelerated Linear Algebra) compiler's high-level heuristics and work directly with the TPU memory structure via JAX Pallas. By controlling the movement of data explicitly between the HBM and on-chip Vector Memory (VMEM), we expect to complete the implementation of a tiled, fused FlashAttention-2 operation and avoid using off-chip memory entirely. Thus, we anticipate substantially fewer memory-related bandwith constraints on the v5e system than previously encountered with our earlier v5e nodes.
 
 The project's continued focus on overcoming specific obstacles associated with the v5e-4 topology (a 4-chip single-host slice connected by a 2x2 Inter-Chip Interconnect mesh) also encourages FlashDecoding, a new type of Specialized Inference Kernel. In this added capability, the FlashDecoding process can be performed in parallel over the entire width of the mesh by loading the Key-Value cache across multiple chips in parallel while utilizing the total memory bandwith of all the chips within the slice as one large memory bandwith resource to minimize inference latency as compared to larger more expensive memory systems.
 
@@ -32,7 +32,7 @@ The core architectural varaition between the v5e and v4/v5p modles is the differ
 
 * **Simplified Grid Mapping:** The developers will not have to deal with the complications of intra-chip communication amongst the paired cores or manage the complexities of the dimension_map for sub-cores within a Megacore. The mapping will be a 1 to 1 relationship between the physical chip and the Pallas program instance.
 
-* **Dedicated Resources:** Each TensorCore is able to access its own 16 GiB of HBM and its own ICI (inter-chip interconnect) link. This removes any contention for resources between cores on the same die.
+* **Dedicated Resources:** Each TensorCore is able to access its own 16 GiB of HBM and its own inter-chip interconnect (ICI) link. This removes any contention for resources between cores on the same die.
 
 #### 2.1.1 The Matrix Multiply Unit (MXU) 
 
@@ -53,3 +53,28 @@ Because MXUs take care of most of the computational power involved in computing 
 * **Throughput Asymmetry:** Many naive kernel implementations face a bottleneck because of the fact that VPUs are the most time-consuming part of the kernel, with MXUs providing far more FLOP speed than VPUs. If the Pallas kernel is designed so that the MXU is idle while the VPU is computing the Softmax exponential calculations, the performance of the kernel can be significantly impeded. In particular, the v5e design requires a large amount of coordination between the VPU's activation calculations and the MXU's matrix multiplication calculations via pipelining.
 
 * **Scalar Unit:** The Scalar Unit is responsible for controlling the flow of execution through the kernel, including looping and generating addresses for accessing arrays. In Pallas, the Scalar Unit is programmed using control strucutures in Python, which are then lower-level reduced to scalar instructions by the Pallas compiler.
+
+### 2.2 The Memory Hierarchy: The 16GB Constraint 
+
+The most critical constraint for this project - and the driver for the pivot in strategy - is the memory hierarchy of the v5e.
+
+**Table 1: Comparative Memory Specifications** 
+
+| Feature | TPU v4 (Reference) | TPU v5e (Target) | Implication for Pallas-Flash |
+| :--- | :--- | :--- | :--- |
+| **HBM Capacity** | 32 GiB per chip | 16 GiB per chip | **Critical constraint.** Standard $O(N^2)$ attention will trigger OOM errors at much shorter sequence lengths. Memory efficiency is paramount. |
+| **HBM Bandwidth** | $\sim1.2~TB/s$ | 819 GB/s | **Throughput Bottleneck.** Reduced bandwidth demands higher arithmetic intensity to avoid stalling the MXUs. |
+| **VMEM Size** | ~16-32 MiB (plus CMEM) | ~128 MiB | **Strategic Advantage.** The v5e has a massive on-chip scratchpad relative to its compute. This allows storing extremely large tiles. |
+| **Core Architecture** | 2 Cores/Chip (Megacore) | 1 Core/Chip | **Simplified programming model;** no shared HBM contention between cores. |
+
+#### The Optimization Thesis: Exploiting VMEM 
+
+The most important focus of the current project is the discovery that the TPU v5e has approximately 128 MiB of VMEM available per core. When designing v4 of this TPU architecture, the memory was divided into a smaller sized VMEM and a larger size Common Memory (CMEM), thus introducing an additional complexity in managing VMEM. In contrast, the TPU v5e allows for a much greater volume of VMEM in a single, large Unified Vector Scratchpad.
+
+Therefore, the available 128 MiB of VMEM is an enormous amount of VMEM in comparison to L1/Shared Memory of equivalent GPUs (which typically have 128 KB to 256 KB). As a result, the "Pallas-Flash" kernel has an entirely different tiling strategy than those of existing GPU based tiling implementations:
+
+* The tiling strategy allows for larger $1024 \times 128$ Query blocks to be loaded into VMEM and always be kept resident within the TPU v5e, rather than smaller $128 \times 128$ blocks used within a GPU.
+
+* The ability to reuse these preloaded resident Query blocks against streaming Key/Value blocks from being loaded into HBM allows for the increase of Arithmetic Intensity (FLOPS per byte transferred).
+
+* This increase is essential to allow the TPU v5e to reach the maximum level of compute performance (197 TFLOPS) while staying constrained by the limited amount of HBM bandwidth (819 GB/s).
