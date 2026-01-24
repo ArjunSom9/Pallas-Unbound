@@ -88,3 +88,17 @@ The user uses a TPU v5e-4 slice, which is composed of four separate physical chi
 * **ICI Bandwidth:** The ICI has a bandwidth of 400 GB/s per chip. For the 2D mesh topology, each chip has direct connection to two neighbouring chips (in the torus topology, the connection wraps around forming a fully connected ring in each dimension). The high bandwith of the ICI boosts the efficiency of the collective operations (all-gather and reduce-scatter) that are used in the FlashDecoding inference approach.
 
 ---
+
+## 3. Phase I: The Baseline Construction
+
+In order to compare the performance of a custom kernel to the performance of a standard software stack, one must first create a baseline. To do this, we would use the default XLA compiler to establish a performance benchmark that will allow for a comparison against a custom-engineered kernel. By establishing a performance benchmark using the default software stack, we are able to determine how to proceed with the design of our kernel based upon limitations within the design of v5e due to limited memory within HBM.
+
+### 3.1 Mathematical Formulation of Standard Attention 
+
+The baseline for attention would use standard `jax.numpy` primitives for the formulation of Scaled Dot Product Attention:
+
+$$ \text{Attention}(Q, K, V) = \text{softmax}\left(\frac{Q K^T}{\sqrt{d_k}} + M\right) V $$
+
+Where:
+* $Q, K, V \in \mathbb{R}^{B \times H \times N \times D}$ (Batch, Heads, Sequence Length, Head Dimension). 
+* $M$ is the causal mask (lower triangular matrix of zeros, upper triangular of $-\infty$). 
