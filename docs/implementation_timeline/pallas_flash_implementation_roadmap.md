@@ -1,26 +1,29 @@
-# Pallas-Flash Implementation Roadmap
+# Pallas-Flash-v5e: Exhaustive Implementation Roadmap
 
-## 1. Project Overview & Directory Structure
+This document outlines the implementation order for every file in the `pallas-flash-v5e` directory.
 
-```text
-pallas-flash-tpu/
-├── pyproject.toml              # Dependency management (jax[tpu], flax, chex).
-├── src/
-│   └── pallas_flash/
-│       ├── config.py           # Hardware constants (TPU v5e-4 HBM BW, VPU FLOPs)
+## Phase 0: Project Scaffold & Baselines
+**Goal:** Initialize the package structure and prove the "Memory Wall" problem.
 
-```
+1. **scripts/setup_vm.sh**
+    * **Action:** Script to install python dependencies, zsh, htop, and configure the TPU environment variables.
 
-## 2. Implementation Phases
+2. **pyproject.toml**
+    * **Action:** Define dependencies (`jax[tpu]`, `flax`, `libtpu-nightly`).
 
-### Phase 1: The "Lab Bench" (Infrastructure & Baselines)
+3. **Makefile**
+    * **Action:** Create shortcuts for `make test` and `make benchmark`.
 
-**Goal:** Establish the mathematical control group and the measurement instruments. We cannot optimize what we cannot measure.
+4. **.gitignore**
+    * **Action:** Ignore `/tmp/xla_dump`, `__pycache__`, `*.rtrace`, and `.venv` to keep the repo clean.
 
-1. `pyproject.toml`
+5. **Package Initialization (`__init__.py` files)** - do actual implementation later
+    * **Action:** Create empty `__init__.py` files to make directories importable:
+        * `src/pallas_flash/__init__.py`
+        * `src/pallas_flash/ops/__init__.py`
+        * `src/pallas_flash/kernels/__init__.py`
+        * `src/pallas_flash/distributed/__init__.py`
+        * `src/pallas_flash/low_level/__init__.py`
 
-* **Why:** Sets up the environment with `jax[tpu]`. We need the runtime before anything else.
-
-2. `src/pallas_flash/config.py`
-
-* **Why:** Defines the hardware constants (HBM Bandwidth = 1.2 TB/s, Matrix Unit dimensions = 128x128). These constants are required for the roofline model.
+6. **src/pallas_flash/config.py**
+    * **Action:** Define constants: HBM_BW (BW=819e9), VMEM=128MB.
