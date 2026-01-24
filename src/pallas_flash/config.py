@@ -13,7 +13,7 @@ Why this matters:
    constants here rather than hunting through kernel code.
 
 References:
-- TPU v5e HBM Bandwidth: 819 GB/s
+- TPU v5e HBM Bandwidth: 819 GB/s (per chip)
 - TPU v5e Peak FLOPS (bf16): 197 TFLOPS
 - TPU v5e VMEM: ~128 MiB (Unified Vector Memory)
 """
@@ -30,12 +30,16 @@ class TPUv5eSpecs:
     """Immutable hardware specifications for the Google Cloud TPU v5e"""
     
     # Implement the memory hierarchy
-    # Set HBM Bandwith to 819 GBps in Bps
-    HBM_BANDWITH_BYTES_PER_SEC: float = 819 * 1e9
+    # Set HBM Bandwidth to 819 GBps in Bps
+    HBM_BANDWIDTH_BYTES_PER_SEC: float = 819 * 1e9
 
     # Set VMEM Capacity as 128 MiB in B
     VMEM_CAPACITY_BYTES: int = 128 * 1024 * 1024
 
+    # Standard precision size for memory math (bfloat16 = 2 bytes)
+    BYTES_PER_BF16: int = 2
+
+    
 
     # Implement the compute capability
     # Set peak throughput (bfloat16) to 197 TFLOPs but in FLOPs
@@ -47,7 +51,11 @@ class TPUv5eSpecs:
 
     # Implement the Topology
     # Set ICI to 400 GBps but in Bps
-    ICI_BANDWITH_BYTES_PER_SEC: float = 400 * 1e9
+    ICI_BANDWIDTH_BYTES_PER_SEC: float = 400 * 1e9
+
+    # v5e-4 Slice Topology (2x2 Mesh)
+    MESH_SHAPE: tuple = (2, 2)
+    NUM_CHIPS: int = 4
 
 # Instantiate singleton configuration
 v5e_specs = TPUv5eSpecs()
