@@ -33,3 +33,23 @@ The core architectural varaition between the v5e and v4/v5p modles is the differ
 * **Simplified Grid Mapping:** The developers will not have to deal with the complications of intra-chip communication amongst the paired cores or manage the complexities of the dimension_map for sub-cores within a Megacore. The mapping will be a 1 to 1 relationship between the physical chip and the Pallas program instance.
 
 * **Dedicated Resources:** Each TensorCore is able to access its own 16 GiB of HBM and its own ICI (inter-chip interconnect) link. This removes any contention for resources between cores on the same die.
+
+#### 2.1.1 The Matrix Multiply Unit (MXU) 
+
+The TPU is powered by the Matrix Multiply Unit that continues to serve as the core computational component for this technology.
+
+* **Systolic Array Design:** The latest version is using the classic systolic array design style; therefore, it allows for the data to be processed in a predictable manner through a 2D grid of arithmetic logic elements. This design allows for increased power savings and material efficiency, since there are fewer accesses to the registers of the compute unit.
+
+* **Dimensions:** The v5e retains the original $128 \times 128$ dimensions found in previous versions of the TPU (v4 and v4). This dimension is what's called an "atomic" tile size for the Pallas programming environment. It essentially means that any kernel that runs on the TPU must be configured to use matrix dimensions that are multiples of 128. Matrices that have a dimension of 129 for example, will be padded to a dimension of 256, which causes the hardware to lose 50% of its throughput due to the double padding. The programming environment requires that the Pallas flash kernel enfore strict alignment to 128 for all tile sizes ($B_c, B_r$).
+
+* **Throughput:** The v5e has a peak throughput of 197 TFLOPS per chip when using bfloat16 precision. This is consiberably less than the v4's 275 TFLOPS, but the benefit of the v5e is that is it able to maintain relatively high utilization across smaller batches that are designed to be used for inference purposes.
+
+* **MXU Count:** Each v5e TensorCore has four MXUs, providing the potential for very high levels of parallel matrix multipy capability. By properly tiling the kernel, multiple attention head blocks can be processed simultaneously.
+
+#### 2.1.2 The Vector Processing Unit (VPU) and Scalar Unit
+
+Because MXUs take care of most of the computational power involved in computing matrix multiplications of ($Q \cdot K^T$ and $A \cdot V$), the Vector Processing Unit (VPU) takes care of all the other calculations that form the basis of the Attention mechanism such as calculating the Softmax exponentials with respect to the values in the Q and K matrices, scaling them appropriately, and applying the masking operations.
+
+* **Throughput Asymmetry:** Many naive kernel implementations face a bottleneck because of the fact that VPUs are the most time-consuming part of the kernel, with MXUs providing far more FLOP speed than VPUs. If the Pallas kernel is designed so that the MXU is idle while the VPU is computing the Softmax exponential calculations, the performance of the kernel can be significantly impeded. In particular, the v5e design requires a large amount of coordination between the VPU's activation calculations and the MXU's matrix multiplication calculations via pipelining.
+
+* **Scalar Unit:** The Scalar Unit is responsible for controlling the flow of execution through the kernel, including looping and generating addresses for accessing arrays. In Pallas, the Scalar Unit is programmed using control strucutures in Python, which are then lower-level reduced to scalar instructions by the Pallas compiler.
