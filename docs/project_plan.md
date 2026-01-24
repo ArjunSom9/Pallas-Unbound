@@ -78,3 +78,13 @@ Therefore, the available 128 MiB of VMEM is an enormous amount of VMEM in compar
 * The ability to reuse these preloaded resident Query blocks against streaming Key/Value blocks from being loaded into HBM allows for the increase of Arithmetic Intensity (FLOPS per byte transferred).
 
 * This increase is essential to allow the TPU v5e to reach the maximum level of compute performance (197 TFLOPS) while staying constrained by the limited amount of HBM bandwidth (819 GB/s).
+
+### 2.3 Topology: The $2 \times 2$ Mesh and Interconnects 
+
+The user uses a TPU v5e-4 slice, which is composed of four separate physical chips connected to each other in a 2D Torus topology through ICIs.
+
+* **Single-Host Architecture:** The TPU v5e architecture is designed to be used as a single-host device when used as a slice of either one, four, or eight chips. This means that all four chips are connected to one virutal machine (VM) instance, such as `ct5lp-hightpu-4`. As a result of being attached to the same VM, the software architecture is much less complex as there are no remote prodecure calls (RPCs) or orchestration of multiple processes acorss distinct physical hosts. The data load and preprocessing of the input into the TPU happen within the same Python process.
+
+* **ICI Bandwidth:** The ICI has a bandwidth of 400 GB/s per chip. For the 2D mesh topology, each chip has direct connection to two neighbouring chips (in the torus topology, the connection wraps around forming a fully connected ring in each dimension). The high bandwith of the ICI boosts the efficiency of the collective operations (all-gather and reduce-scatter) that are used in the FlashDecoding inference approach.
+
+---
