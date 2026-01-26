@@ -170,3 +170,16 @@ In standard FlashAttention utilizing GPUs, standard block sizes ($128 \times 64$
     * **Update Output:** $O_{acc} += P_{ij} \cdot V_j$ (MXU). 
     * **Synchronization:** Wait for DMA of next block.
 4.  **Finalize:** Normalize $O_{acc}$ and DMA write to HBM. 
+
+### 4.3 Memory Alignment and Padding 
+
+The TPU MXU is a $128 \times 128$ systolic array. 
+
+* **Constraint:** All inner dimensions of matrices utilized in matrix multiplication must be multiples of 128.
+
+* **The "Copy" Trap:** The XLA library will insert large operations into the input process to support padding in HBM before executing the kernel if input size does not meet padding requirements (i.e., incorrect input sizes, such as a head dimension of 96, etc.). Such added memory usage is significant and can negatively affect overall performance.
+
+* **Mandatory Requirement:** `jax.numpy.pad` must be used in the data pipeline to pad all tensor dimensions (and other tensor dimensionality) passed to the kernel to 128-byte aligned formats. Correspondingly aligned tiles should be requested in the Pallas `BlockSpec` of the kernel.
+
+---
+
