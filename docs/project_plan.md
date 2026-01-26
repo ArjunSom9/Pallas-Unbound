@@ -144,3 +144,29 @@ Pallas serves as a conduit to low-level Mosaic/TPU assembly. The v5e programming
     * **Input/Output:** Located in HBM
     * **Scratchpad:** All memory buffers must be allocated explicitly, either in VMEM or SMEM.
 
+### 4.2 The Tiling Strategy: Exploiting the 128 MIB VMEM 
+
+The "Pallas-Flash" has the greatest advantage of using the 128 MiB VMEM aggressively.
+
+**The Block Size Calculation:** 
+In standard FlashAttention utilizing GPUs, standard block sizes ($128 \times 64$ and $128 \times 128$) were designed around the 100KB-200KB SRAM limitation on these systems; in contrast, the TPU v5e has many times more physical memory available than this.
+
+* **Query Block ($B_q$):** Multiple Qs could be loaded at once with very large blocks. For example, for $D=128$, a single block of $1024 \times 128$ floats takes up only 0.5 MB worth of space. Such blocks can easily fit many blocks of size $1024$, and even $2048$, into the VMEM.
+
+* **Key/Value Block ($B_k$):** Smaller chunks of K and V are streamed through HBM. For example, $B_k = 512$
+
+**Why Larger Tiles Win on v5e:** 
+* **Arithmetic Intensity:** The arithmetic intensity of $B_k$ increases with the size of $Q_{blocks}$ used because it computes $Q_{block} \times K_{block}^T$. So larger $Q_{block}$ sizes will result in a greater number of FLOPs computed per byte of K/V loaded from HBM.
+
+* **Hiding Latency:** The v5e's HBM bandwidth of 819 GB/s is not as high as that of other recent TPUs. By using larger tile sizes, longer periods of time exist between when the last compute phase completes and when the next block can be fetched via DMA, thereby effectively hiding the HBM memory latency.
+
+**The Algorithm Flow (Per Program Instance):** 
+1.  **Initialization:** Allocate Accumulator ($O_{acc}$) and Stats ($M, L$) in VMEM. 
+2.  **Load Q:** DMA a large block of Queries ($Q_i$) from HBM to VMEM. This stays resident. 
+3.  **The KV Loop:** Iterate $j$ from $0$ to $N/B_k$: 
+    * **Pipeline Load:** Issue DMA request for $K_{j+1}, V_{j+1}$ (Prefetch). 
+    * **Compute Scores:** $S_{ij} = Q_i \cdot K_j^T$ (MXU). 
+    * **Online Softmax:** Update max/sum stats using VPU. 
+    * **Update Output:** $O_{acc} += P_{ij} \cdot V_j$ (MXU). 
+    * **Synchronization:** Wait for DMA of next block.
+4.  **Finalize:** Normalize $O_{acc}$ and DMA write to HBM. 
