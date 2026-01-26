@@ -125,3 +125,22 @@ In order to demonstrate scientifically the basis of our belief in "Why this wins
 * **Throughput** as tokens processed in one second.
 * **HBM Bandwidth Utilization**, by monitoring the memory bus using `jax.profiler`, we will know if we have a memory-bound workload by looking at the relationship between a saturated memory bus and low MXU.
 * **Model FLOPs Utilization (MFU):** the ratio of FLOPs that were achieved divided by the theoretical peak of 197 TFLOPs.
+
+---
+
+## 4. Phase II: The Pallas Kernel Architecture 
+
+This is the primary engineering focus of Pallas: switch out the memory inefficient XLA graph and double the original output size by manually tiling Pallas kernels for efficiency on v5e.
+
+### 4.1 The Pallas Programming Model for v5e 
+
+Pallas serves as a conduit to low-level Mosaic/TPU assembly. The v5e programming model is much easier to work with because it uses a single core.
+
+* **Grid Definition:** Pallas executes the kernel as independent bin blocks of the output matrix, where the number of program instances is defined by the grid.
+    * Target Grid: `(Batch_Size, Num_Heads, N_Blocks_Output)`
+    * In the case of the v5e, each point in the grid becomes a scheduled task on the single TensorCore - as opposed to Megacore configurations where you need to map specific dimensions to sub-cores on v4/v5p systems.
+
+* **Memory Spaces:** Pallas separates Refs in HBM (Global) from Refs in VMEM/SMEM (Local).
+    * **Input/Output:** Located in HBM
+    * **Scratchpad:** All memory buffers must be allocated explicitly, either in VMEM or SMEM.
+
