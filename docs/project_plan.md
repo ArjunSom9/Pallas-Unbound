@@ -192,3 +192,12 @@ When analyzing the compiled binary we will use the command `XLA_FLAGS="--xla_dum
 * **HLO (High-Level Optimizer) Analysis:** We will look for the `copy-start` and `copy-done` instructions around the `custom-call` in the HLO text. If they are present, it indicates that we have not aligned the memory correctly, causing the "Copy Trap" error to occur.
 * **Vector Register Spilling:** If we have tiled too aggressively, or gone over the 128 MiB VMEM and/or fragmented the 128 MiB VMEM, the compiler may put some of the registers onto HBM instead of keeping them all in the vector registers. We will be able to identify this by checking for unexpected HBM traffic in the profiler.
 
+### 5.2 Pipeline Bubbles 
+
+Using the JAX Profiler Trace Viewer: 
+* **Goal:** To establish a "solid wall" of periods where MXUs are busy.
+* **Failure:** MXU block(s) that have empty space (a gap) means that the computation was complete prior to receiving the next DMA transfer load.
+* **Fix for v5e:** If gaps exist between MXUs, increase the size of the `Block_Q`. By increasing the duration of the computation on the inside of the loop without increasing the number of bytes transferred (data loading), there will be more time for the DMA engine to complete the fetch operation. The increase in size of the `Block_Q` is the primary tuning knob for the v5e's 819 GB/s bandwidth.
+
+---
+
