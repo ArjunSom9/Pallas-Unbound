@@ -176,10 +176,19 @@ In standard FlashAttention utilizing GPUs, standard block sizes ($128 \times 64$
 The TPU MXU is a $128 \times 128$ systolic array. 
 
 * **Constraint:** All inner dimensions of matrices utilized in matrix multiplication must be multiples of 128.
-
 * **The "Copy" Trap:** The XLA library will insert large operations into the input process to support padding in HBM before executing the kernel if input size does not meet padding requirements (i.e., incorrect input sizes, such as a head dimension of 96, etc.). Such added memory usage is significant and can negatively affect overall performance.
-
 * **Mandatory Requirement:** `jax.numpy.pad` must be used in the data pipeline to pad all tensor dimensions (and other tensor dimensionality) passed to the kernel to 128-byte aligned formats. Correspondingly aligned tiles should be requested in the Pallas `BlockSpec` of the kernel.
 
 ---
+
+## 5. Phase III: Assembly Debugging and Low-Level Optimization 
+
+In order to create high-performance kernels, it is important to validate that the hardware is functioning properly.
+
+### 5.1 Artifact Analysis 
+
+When analyzing the compiled binary we will use the command `XLA_FLAGS="--xla_dump_to=/tmp/xla_dump"`.
+
+* **HLO (High-Level Optimizer) Analysis:** We will look for the `copy-start` and `copy-done` instructions around the `custom-call` in the HLO text. If they are present, it indicates that we have not aligned the memory correctly, causing the "Copy Trap" error to occur.
+* **Vector Register Spilling:** If we have tiled too aggressively, or gone over the 128 MiB VMEM and/or fragmented the 128 MiB VMEM, the compiler may put some of the registers onto HBM instead of keeping them all in the vector registers. We will be able to identify this by checking for unexpected HBM traffic in the profiler.
 
