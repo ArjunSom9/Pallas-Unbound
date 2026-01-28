@@ -201,3 +201,6 @@ Using the JAX Profiler Trace Viewer:
 
 ---
 
+## 6. Phase IV: The Ceiling - FlashDecoding on 4 Chips 
+
+The "FlashDecoding" phase addresses the inference bottleneck. In decoding, we generate one token at a time. A single query token attending to a 32k KV cache is purely memory-bound.
