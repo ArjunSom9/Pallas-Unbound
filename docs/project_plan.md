@@ -204,3 +204,10 @@ Using the JAX Profiler Trace Viewer:
 ## 6. Phase IV: The Ceiling - FlashDecoding on 4 Chips 
 
 The "FlashDecoding" phase addresses the inference bottleneck. In decoding, we generate one token at a time. A single query token attending to a 32k KV cache is purely memory-bound.
+
+### 6.1 The Inference Challenge on v5e 
+
+On a single v5e chip, scanning a 32k KV cache (float16) involves reading ~130MB of data. At 819 GB/s, this takes:
+$$ \frac{130 \text{ MB}}{819 \text{ GB/s}} \approx 158 \mu s $$ 
+
+This is fast, but as context grows to 128k or 1M, this linear scan becomes the latency bottleneck. Furthermore, utilizing only 1 chip of the 4 available leaves 75% of the slice's bandwidth idle.
