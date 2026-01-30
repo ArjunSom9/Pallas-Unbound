@@ -211,3 +211,7 @@ On a single v5e chip, scanning a 32k KV cache (float16) involves reading ~130MB 
 $$ \frac{130 \text{ MB}}{819 \text{ GB/s}} \approx 158 \mu s $$ 
 
 This is fast, but as context grows to 128k or 1M, this linear scan becomes the latency bottleneck. Furthermore, utilizing only 1 chip of the 4 available leaves 75% of the slice's bandwidth idle.
+
+### 6.2 The Solution: Split-KV Parallelism 
+
+We will implement Split-KV Decoding to utilize the full 2x2 mesh.
