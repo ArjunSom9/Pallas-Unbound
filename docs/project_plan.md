@@ -215,3 +215,11 @@ This is fast, but as context grows to 128k or 1M, this linear scan becomes the l
 ### 6.2 The Solution: Split-KV Parallelism 
 
 We will implement Split-KV Decoding to utilize the full 2x2 mesh.
+
+**Algorithm:**
+1.  **Shard the KV Cache:** The sequence length $N$ is divided equally across the 4 chips. For $N=32k$, each chip holds 8k tokens. Sharding Spec: `PartitionSpec('N', 'H',...)` mapped to the 4-device mesh. 
+2.  **Broadcast Query:** The single query token $Q$ is broadcast to all 4 chips. 
+3.  **Local Attention:** Each chip effectively runs a "mini" attention operation on its local 8k KV shard. This happens in parallel. Each chip produces: `(local_output, local_max, local_sum)`. 
+4.  **Global Reduction:** 
+    * We use `jax.lax.psum` (or `all_gather`) over the ICI network to combine results. The 400 GB/s ICI bandwidth is extremely fast for this small reduction (only passing output vectors, not the KV cache). 
+    * **LogSumExp:** We perform a stable LogSumExp reduction across the 4 chips to correctly normalize the partial attention scores. 
