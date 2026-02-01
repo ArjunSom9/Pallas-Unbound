@@ -223,3 +223,7 @@ We will implement Split-KV Decoding to utilize the full 2x2 mesh.
 4.  **Global Reduction:** 
     * We use `jax.lax.psum` (or `all_gather`) over the ICI network to combine results. The 400 GB/s ICI bandwidth is extremely fast for this small reduction (only passing output vectors, not the KV cache). 
     * **LogSumExp:** We perform a stable LogSumExp reduction across the 4 chips to correctly normalize the partial attention scores. 
+
+### 6.3 Why v5e-4 Excels Here 
+
+The aggregate HBM bandwidth of the 4-chip slice is $4 \times 819 \text{ GB/s} \approx 3.2 \text{ TB/s}$. By parallelizing the memory read, we reduce the memory stall time by nearly 4x compared to a single chip. This allows the v5e slice to deliver inference speeds competitive with much more expensive single GPUs (like the H100) for long-context workloads. 
