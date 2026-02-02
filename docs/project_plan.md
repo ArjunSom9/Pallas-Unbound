@@ -226,4 +226,8 @@ We will implement Split-KV Decoding to utilize the full 2x2 mesh.
 
 ### 6.3 Why v5e-4 Excels Here 
 
-The aggregate HBM bandwidth of the 4-chip slice is $4 \times 819 \text{ GB/s} \approx 3.2 \text{ TB/s}$. By parallelizing the memory read, we reduce the memory stall time by nearly 4x compared to a single chip. This allows the v5e slice to deliver inference speeds competitive with much more expensive single GPUs (like the H100) for long-context workloads. 
+The aggregate HBM bandwidth of the 4-chip slice is $4 \times 819 \text{ GB/s} \approx 3.2 \text{ TB/s}$. By parallelizing the memory read, we reduce the memory stall time by nearly 4x compared to a single chip. This allows the v5e slice to deliver inference speeds competitive with much more expensive single GPUs (like the H100) for long-context workloads.
+
+## 7. Project Roadmap and Implementation Plan 
+
+This 8-week timeline is calibrated for the specific challenges of the v5e architecture. 
