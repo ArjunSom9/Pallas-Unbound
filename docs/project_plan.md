@@ -230,4 +230,12 @@ The aggregate HBM bandwidth of the 4-chip slice is $4 \times 819 \text{ GB/s} \a
 
 ## 7. Project Roadmap and Implementation Plan 
 
-This 8-week timeline is calibrated for the specific challenges of the v5e architecture. 
+This 8-week timeline is calibrated for the specific challenges of the v5e architecture.
+
+**Week 1-2: Foundation and Baseline (v5e-4 Environment)** 
+* **Objective:** Quantify the "Memory Wall" on 16GB chips. 
+* **Tasks:**
+    * Provision `ct5lp-hightpu-4t` (v5e-4) VM. 
+    * Implement `baseline_mha.py` with `jax.jit`.
+    * Stress Test: Determine the maximum Sequence Length before OOM (likely ~16k-20k). 
+* **Deliverable:** Roofline plot showing HBM Bandwidth saturation at ~800 GB/s. 
