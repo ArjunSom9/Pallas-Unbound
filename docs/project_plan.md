@@ -239,3 +239,11 @@ This 8-week timeline is calibrated for the specific challenges of the v5e archit
     * Implement `baseline_mha.py` with `jax.jit`.
     * Stress Test: Determine the maximum Sequence Length before OOM (likely ~16k-20k). 
 * **Deliverable:** Roofline plot showing HBM Bandwidth saturation at ~800 GB/s. 
+
+**Week 3-4: Pallas Kernel V1 (Single Chip)** 
+* **Objective:** Functional correctness with 128x128 tiling. 
+* **Tasks:** 
+    * Implement `flash_attention_kernel` in Pallas. 
+    * Implement `BlockSpec` logic mapping (B, H, N) to 128-sized tiles. 
+    * **v5e Specific:** Verify that VMEM usage is within 128 MiB limits using `jax.profiler`. 
+    * Debug NaNs in Softmax (ensure bf16 stability). 
