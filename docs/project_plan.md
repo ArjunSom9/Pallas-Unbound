@@ -246,4 +246,12 @@ This 8-week timeline is calibrated for the specific challenges of the v5e archit
     * Implement `flash_attention_kernel` in Pallas. 
     * Implement `BlockSpec` logic mapping (B, H, N) to 128-sized tiles. 
     * **v5e Specific:** Verify that VMEM usage is within 128 MiB limits using `jax.profiler`. 
-    * Debug NaNs in Softmax (ensure bf16 stability). 
+    * Debug NaNs in Softmax (ensure bf16 stability).
+
+**Week 5-6: Optimization & Pipelining (The 128MB Pivot)** 
+* **Objective:** Maximize Arithmetic Intensity. 
+* **Tasks:** 
+    * **Tiling Tuning:** Increase `Block_Q` from 128 to 512, then 1024. Observe impact on latency. 
+    * **Pipelining:** Implement `pl.pipeline` to overlap the next KV block load with current compute. 
+    * **HLO Inspection:** Verify removal of `copy-start` instructions by enforcing 128-byte alignment on inputs. 
+* **Deliverable:** Kernel achieving >60% MFU on long sequences.
