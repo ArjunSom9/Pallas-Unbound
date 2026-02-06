@@ -255,3 +255,11 @@ This 8-week timeline is calibrated for the specific challenges of the v5e archit
     * **Pipelining:** Implement `pl.pipeline` to overlap the next KV block load with current compute. 
     * **HLO Inspection:** Verify removal of `copy-start` instructions by enforcing 128-byte alignment on inputs. 
 * **Deliverable:** Kernel achieving >60% MFU on long sequences.
+
+**Week 7: FlashDecoding (4-Chip Distributed)** 
+* **Objective:** Low-latency Inference. 
+* **Tasks:** 
+    * Implement `flash_decoding_kernel` designed for Batch = 1. 
+    * Use `jax.shard_map` or `jax.pmap` to distribute KV cache across the 4 devices. 
+    * Implement the custom LogSumExp reduction over the $2 \times 2$ ICI mesh. 
+    * **Benchmark:** Compare Latency of Single-Chip vs. 4-Chip Split-KV. 
