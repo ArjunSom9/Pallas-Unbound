@@ -269,3 +269,7 @@ This 8-week timeline is calibrated for the specific challenges of the v5e archit
 * **Tasks:** 
     * Final Report: "Optimizing for the v5e Memory Hierarchy." 
     * Release code with specific comments on v5e constraints (16GB limit, 128MB VMEM usage).
+
+---
+
+## 8. Conclusion 
