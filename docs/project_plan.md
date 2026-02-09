@@ -273,3 +273,9 @@ This 8-week timeline is calibrated for the specific challenges of the v5e archit
 ---
 
 ## 8. Conclusion 
+
+The shift to the TPU v5e requires a departure from "brute-force" scaling strategies. We are no longer limited by the synchronization of thousands of chips, but rather by the strict memory boundaries of a single, efficient accelerator. By leveraging the Pallas programming model, we can convert the v5e's unique architectural features—specifically its massive 128 MiB on-chip VMEM and efficient single-core design—into a decisive advantage. 
+
+The Pallas-Flash kernel will demonstrate that by manually managing memory hierarchy, we can overcome the 16 GiB HBM constraint and the 819 GB/s bandwidth limit. Furthermore, the FlashDecoding implementation will prove that a modest 4-chip v5e slice, when orchestrated correctly via Split-KV parallelism, can deliver inference performance that punches far above its weight class. This project does not merely "port" FlashAttention; it re-engineers it to define the state-of-the-art for efficient, long-context AI compute. 
+
+---
