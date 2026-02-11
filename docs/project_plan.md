@@ -283,3 +283,12 @@ The Pallas-Flash kernel will demonstrate that by manually managing memory hierar
 ## 9. Appendix: Data Tables and Reference Information 
 
 **Table 2: Hardware Specification Comparison** 
+
+| Specification | TPU v4 (Reference) | TPU v5e (Target) | Impact on Kernel Design |
+| :--- | :--- | :--- | :--- |
+| **Chip Architecture** | Dual TensorCore (Megacore) | Single TensorCore | **Simplified Grid:** No need to handle intra-chip devicemap. |
+| **MXU Array** | 4x (128x128) per core | 4x ($128 \times 128$) per core | **Tiling:** Must align to 128. Padding is critical. |
+| **HBM Capacity** | 32 GiB / chip | 16 GiB / chip | **High Risk:** OOM is the primary threat. FlashAttention is mandatory. |
+| **HBM Bandwidth** | $1.2~TB/s$ | 819 GB/s | **Bottleneck:** Requires larger resident blocks in VMEM to hide latency. |
+| **VMEM Size** | ~16 MiB (+ CMEM) | ~128 MiB | **Advantage:** Use large tiles (e.g., $1024 \times 128$) to increase arithmetic intensity. |
+| **Topology** | 3D Torus | 2x2 2D Torus | **Connectivity:** High-speed ICI |
