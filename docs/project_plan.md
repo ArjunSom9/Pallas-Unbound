@@ -291,4 +291,4 @@ The Pallas-Flash kernel will demonstrate that by manually managing memory hierar
 | **HBM Capacity** | 32 GiB / chip | 16 GiB / chip | **High Risk:** OOM is the primary threat. FlashAttention is mandatory. |
 | **HBM Bandwidth** | $1.2~TB/s$ | 819 GB/s | **Bottleneck:** Requires larger resident blocks in VMEM to hide latency. |
 | **VMEM Size** | ~16 MiB (+ CMEM) | ~128 MiB | **Advantage:** Use large tiles (e.g., $1024 \times 128$) to increase arithmetic intensity. |
-| **Topology** | 3D Torus | 2x2 2D Torus | **Connectivity:** High-speed ICI|
+| **Topology** | 3D Torus | 2x2 2D Torus | **Connectivity:** High-speed ICI |
