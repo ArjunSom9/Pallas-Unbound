@@ -232,3 +232,5 @@ benchmark_results/
 
 # Mac OS
 .DS_Store
+
+.vscode

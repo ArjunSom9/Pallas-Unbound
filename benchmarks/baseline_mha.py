@@ -1,0 +1,1 @@
+# Pure JAX Control Group (Proves OOM >12k seq)
