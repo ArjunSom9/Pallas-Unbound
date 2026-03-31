@@ -145,7 +145,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Varying KV Cache sizes representing different stages of sequence generation
-    cache_lengths = [1024, 2048, 4096, 8192, 16384, 32768, 65536]
+    cache_lengths = [1024, 2048, 4096, 8192, 16384, 32768]
     
     run_decoding_sweep(
         batch=args.batch, 
