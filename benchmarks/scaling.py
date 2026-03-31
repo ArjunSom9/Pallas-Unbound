@@ -106,7 +106,9 @@ def run_scaling_sweep(batch: int, heads: int, head_dim: int, seq_lengths: list):
         
         # 1. Benchmark Baseline
         base_lat, base_err = benchmark_kernel(baseline_mha, q, k, v)
-        if base_err:
+        
+        # Type narrowing: explicitly check if base_lat is None
+        if base_err or base_lat is None:
             base_str = f"FAILED ({base_err})"
         else:
             base_str = f"{base_lat * 1000:.2f} ms"
@@ -126,7 +128,8 @@ def run_scaling_sweep(batch: int, heads: int, head_dim: int, seq_lengths: list):
             captured_trace = True
             print("-" * 89)
             
-        if pallas_err:
+        # Type narrowing: explicitly check if pallas_lat is None
+        if pallas_err or pallas_lat is None:
             pallas_str = f"FAILED ({pallas_err})"
             tflops_str = "N/A"
         else:
@@ -149,7 +152,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Standard progression of context windows
-    sequence_lengths = [1024, 2048, 4096, 8192, 16384, 32768]
+    sequence_lengths = [1024, 2048, 4096, 8192, 16384]
     
     run_scaling_sweep(
         batch=args.batch, 

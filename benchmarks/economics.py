@@ -102,7 +102,8 @@ def run_economic_sweep(batch: int, heads: int, head_dim: int, seq_lengths: list)
         
         # 1. Baseline Run
         base_lat, base_err = benchmark_kernel(baseline_mha, q, k, v)
-        if base_err:
+        # Type narrowing: explicitly check if base_lat is None for Pylance
+        if base_err or base_lat is None:
             base_tps_str, base_cost_str = f"OOM ({base_err})", "N/A"
             base_cost = float('inf')
         else:
@@ -113,7 +114,8 @@ def run_economic_sweep(batch: int, heads: int, head_dim: int, seq_lengths: list)
 
         # 2. Pallas-Flash Run
         pallas_lat, pallas_err = benchmark_kernel(pallas_flash_attention, q, k, v)
-        if pallas_err:
+        # Type narrowing: explicitly check if pallas_lat is None for Pylance
+        if pallas_err or pallas_lat is None:
             pal_tps_str, pal_cost_str = f"FAILED ({pallas_err})", "N/A"
             pal_cost = float('inf')
         else:

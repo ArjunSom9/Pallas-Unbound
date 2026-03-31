@@ -1,4 +1,4 @@
-# Dependencies: jax[tpu], flax, chex, libtpu
+# Dependencies: jax[tpu], flax, chex
 
 [build-system]
 requires = ["setuptools>=61.0"]
@@ -24,26 +24,25 @@ classifiers = [
 
 # Core dependencies required to run the kernel
 dependencies = [
-    "jax>=0.4.23",        # Pallas features require recent JAX
+    "jax>=0.4.23",        
     "jaxlib>=0.4.23",
-    "flax>=0.8.0",        # High-Level neural network primitives
-    "einops>=0.7.0",      # For readable tensor reshaping
-    "chex>=0.1.85",       # Utilities for testing JAX code (Google standard)
+    "flax>=0.8.0",        
+    "einops>=0.7.0",      
+    "chex>=0.1.85",       
     "numpy>=1.24.0",
-    "optax>=0.1.9",       # Optimization library (standard with Flax)
-    "tqdm>=4.66.0",       # Progress bars for benchmarks
-    "libtpu-nightly"      # TPU Runtime (Required for v5e)
+    "optax>=0.1.9",       
+    "tqdm>=4.66.0"       
 ]
 
 [project.optional-dependencies]
 # Tools for development, analysis, and visualization
 dev = [
-    "pytest>=7.4.0",      # Test runner
-    "matplotlib>=3.8.0",  # For Roofline plots
-    "tensorboard>=2.15.0",# For memory traces
-    "black>=23.0.0",      # Code formatting
-    "isort>=5.12.0",      # Import sorting
-    "pandas>=2.1.0"       # For analyzing benchmark CSVs
+    "pytest>=7.4.0",      
+    "matplotlib>=3.8.0",  
+    "tensorboard>=2.15.0",
+    "black>=23.0.0",      
+    "isort>=5.12.0",      
+    "pandas>=2.1.0"       
 ]
 
 [project.urls]
@@ -52,7 +51,6 @@ dev = [
 # --- Tool Configuration ---
 
 # 1. Pytest Configuration
-# Tells pytest where to look and how to behave
 [tool.pytest.ini_options]
 minversion = "6.0"
 addopts = "-ra -q"
@@ -60,16 +58,17 @@ testpaths = [
     "tests",
 ]
 python_files = "test_*.py"
+markers = [
+    "stress: marks tests as heavy stress/memory tests (deselect with '-m \"not stress\"')"
+]
 
-# 2. Black Configuration (The formatter)
-# Ensures code looks uniform (Line Length 88 is standard)
+# 2. Black Configuration
 [tool.black]
 line-length = 88
 target-version = ['py39']
 include = '\.pyi?$'
 
 # 3. Isort Configuration
-# Ensures imports are sorted (Standard Lib -> Third Party -> Local)
 [tool.isort]
 profile = "black"
 multi_line_output = 3

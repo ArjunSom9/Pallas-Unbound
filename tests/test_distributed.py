@@ -31,6 +31,7 @@ if "XLA_FLAGS" not in os.environ:
 import jax
 import jax.numpy as jnp
 from jax.sharding import PartitionSpec as P
+from jax.experimental.shard_map import shard_map
 
 # Import our custom distributed modules
 from pallas_flash.distributed.mesh import create_v5e_mesh, get_attention_sharding, shard_tensor
@@ -72,13 +73,13 @@ def test_mesh_and_sharding():
         sharded_tensor = shard_tensor(dummy_tensor, sharding)
         
     # 4. Verify physical distribution
-    # The tensor should now be backed by 4 underlying device buffers.
-    num_buffers = len(sharded_tensor.device_buffers)
+    # The tensor should now be backed by 4 underlying device buffers (addressable shards).
+    num_buffers = len(sharded_tensor.addressable_shards)
     assert num_buffers == 4, \
         f"Expected tensor to be physically split into 4 buffers, found {num_buffers}."
         
     # Each physical chunk on the devices should have 1/4th of the heads (16 / 4 = 4)
-    local_shape = sharded_tensor.device_buffers[0].shape
+    local_shape = sharded_tensor.addressable_shards[0].data.shape
     assert local_shape == (2, 4, 128, 64), \
         f"Incorrect local chunk shape. Expected (2, 4, 128, 64), got {local_shape}"
         
@@ -103,7 +104,15 @@ def test_tp_all_reduce():
     # We specify the output should maintain the same sharding layout.
     @jax.jit
     def distributed_sum(x):
-        return all_reduce_tp(x)
+        # shard_map binds the mesh axis names ('dp', 'tp') so jax.lax.psum can use them locally
+        # It requires the PartitionSpec (sharding.spec), not the full NamedSharding object
+        _sum_fn = shard_map(
+            all_reduce_tp,
+            mesh=mesh,
+            in_specs=sharding.spec,
+            out_specs=sharding.spec
+        )
+        return _sum_fn(x)
         
     with mesh:
         # Shard the ones across the 4 devices
@@ -133,7 +142,14 @@ def test_dp_all_reduce_mean():
     
     @jax.jit
     def distributed_mean(x):
-        return all_reduce_dp_mean(x)
+        # shard_map exposes the 'dp' axis name context 
+        _mean_fn = shard_map(
+            all_reduce_dp_mean,
+            mesh=mesh,
+            in_specs=sharding.spec,
+            out_specs=sharding.spec
+        )
+        return _mean_fn(x)
         
     with mesh:
         sharded_tens = shard_tensor(global_tensor, sharding)

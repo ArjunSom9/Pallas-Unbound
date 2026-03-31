@@ -112,7 +112,8 @@ def run_decoding_sweep(batch: int, heads: int, head_dim: int, seq_lengths: list)
         
         # 1. Benchmark Baseline
         base_lat, base_err = benchmark_kernel(baseline_decode_step, q, k, v)
-        if base_err:
+        # Type narrowing: explicitly check if base_lat is None
+        if base_err or base_lat is None:
             base_str = f"FAILED ({base_err})"
         else:
             base_str = f"{base_lat * 1000:.3f} ms"
@@ -120,7 +121,8 @@ def run_decoding_sweep(batch: int, heads: int, head_dim: int, seq_lengths: list)
         # 2. Benchmark Pallas-Flash Decoding Kernel
         pallas_lat, pallas_err = benchmark_kernel(pallas_flash_decoding, q, k, v)
         
-        if pallas_err:
+        # Type narrowing: explicitly check if pallas_lat is None
+        if pallas_err or pallas_lat is None:
             pallas_str = f"FAILED ({pallas_err})"
             bw_str = "N/A"
         else:
@@ -143,7 +145,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Varying KV Cache sizes representing different stages of sequence generation
-    cache_lengths = [1024, 2048, 4096, 8192, 16384, 32768, 65536]
+    cache_lengths = [1024, 2048, 4096, 8192, 16384, 32768]
     
     run_decoding_sweep(
         batch=args.batch, 
