@@ -1,8 +1,8 @@
 """
 High-Level Dispatch Interface (interface.py)
 
-Fixed: Used explicit keyword arguments for BlockSpec to resolve Pylance 
-type-checking errors and ensure cross-version JAX compatibility.
+Fixed: Using explicit padding for sequence lengths and head dimension to 
+ensure the grid mapping correctly processes unaligned tensors.
 """
 
 import jax
@@ -23,9 +23,17 @@ def pallas_flash_attention(q: jax.Array, k: jax.Array, v: jax.Array) -> jax.Arra
     orig_batch, orig_heads, orig_seq, orig_dim = q.shape
     
     # 2. Hardware Alignment (Padding)
-    k_pad, _ = pad_tensor(k, axes=(-2,))
-    v_pad, _ = pad_tensor(v, axes=(-2,))
-    q_pad, q_orig_shape = pad_tensor(q, axes=(-2, -1))
+    # Pad head dimension to 128 for all tensors
+    q_pad_h, q_orig_shape = pad_tensor(q, axes=(-1,), alignment=128)
+    k_pad_h, _ = pad_tensor(k, axes=(-1,), alignment=128)
+    v_pad_h, _ = pad_tensor(v, axes=(-1,), alignment=128)
+    
+    # Pad sequence lengths appropriately
+    # Q's sequence length must be a multiple of BLOCK_Q to ensure the grid covers it completely
+    q_pad, _ = pad_tensor(q_pad_h, axes=(-2,), alignment=BLOCK_Q)
+    # K and V's sequence length must be a multiple of BLOCK_KV to allow chunked streaming
+    k_pad, _ = pad_tensor(k_pad_h, axes=(-2,), alignment=BLOCK_KV)
+    v_pad, _ = pad_tensor(v_pad_h, axes=(-2,), alignment=BLOCK_KV)
     
     batch_size, num_heads, padded_seq_q, head_dim_pad = q_pad.shape
     _, _, padded_seq_kv, _ = k_pad.shape
