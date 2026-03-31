@@ -1,8 +1,8 @@
 """
 High-Level Dispatch Interface (interface.py)
 
-Fixed: Using explicit padding for sequence lengths and head dimension to 
-ensure the grid mapping correctly processes unaligned tensors.
+Fixed: Mapped K and V to strictly isolate the current batch and head, 
+preventing the compiler from allocating all heads into scoped VMEM.
 """
 
 import jax
@@ -23,15 +23,11 @@ def pallas_flash_attention(q: jax.Array, k: jax.Array, v: jax.Array) -> jax.Arra
     orig_batch, orig_heads, orig_seq, orig_dim = q.shape
     
     # 2. Hardware Alignment (Padding)
-    # Pad head dimension to 128 for all tensors
     q_pad_h, q_orig_shape = pad_tensor(q, axes=(-1,), alignment=128)
     k_pad_h, _ = pad_tensor(k, axes=(-1,), alignment=128)
     v_pad_h, _ = pad_tensor(v, axes=(-1,), alignment=128)
     
-    # Pad sequence lengths appropriately
-    # Q's sequence length must be a multiple of BLOCK_Q to ensure the grid covers it completely
     q_pad, _ = pad_tensor(q_pad_h, axes=(-2,), alignment=BLOCK_Q)
-    # K and V's sequence length must be a multiple of BLOCK_KV to allow chunked streaming
     k_pad, _ = pad_tensor(k_pad_h, axes=(-2,), alignment=BLOCK_KV)
     v_pad, _ = pad_tensor(v_pad_h, axes=(-2,), alignment=BLOCK_KV)
     
@@ -42,11 +38,11 @@ def pallas_flash_attention(q: jax.Array, k: jax.Array, v: jax.Array) -> jax.Arra
     scale = 1.0 / jnp.sqrt(head_dim_pad)
     q_scaled = (q_pad * scale).astype(jnp.bfloat16)
     
-    # Grid: Batch x Heads x Q_Blocks
     grid = (batch_size, num_heads, padded_seq_q // BLOCK_Q)
     
-    # 4. Define BlockSpecs using Keyword Arguments
-    # This solves the Pylance "Argument of type Function cannot be assigned to block_shape" error.
+    # 4. Define BlockSpecs
+    # We explicitly map the batch and head dimensions. This guarantees the 
+    # kernel only receives a (1, 1, N, 128) slice, keeping scoped VMEM under 16MB.
     in_specs = (
         pl.BlockSpec(
             index_map=lambda b, h, q_idx: (b, h, q_idx, 0), 

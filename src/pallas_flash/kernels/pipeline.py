@@ -1,8 +1,8 @@
 """
 Pipelined Key-Value Execution Loop (pipeline.py)
 
-Fixed: Updated type hints for b_idx and h_idx from `int` to `jax.Array`
-to accurately reflect that pl.program_id() returns a dynamic scalar tensor.
+Fixed: Removed global program_id indexing. BlockSpec now handles 
+batch and head slicing automatically.
 """
 
 import jax
@@ -18,9 +18,7 @@ def pipeline_kv_loop(
     padded_seq_len: int,
     original_seq_len: int,
     block_kv: int,
-    head_dim: int,
-    b_idx: jax.Array,
-    h_idx: jax.Array
+    head_dim: int
 ) -> Tuple[jax.Array, jax.Array, jax.Array]:
     block_q = q_block.shape[0]
     num_kv_steps = padded_seq_len // block_kv
@@ -33,9 +31,9 @@ def pipeline_kv_loop(
     def kv_step(j: int, carry: Tuple[jax.Array, jax.Array, jax.Array]):
         o_acc_prev, m_prev, l_prev = carry
 
-        # Load blocks: pl.Slice for sequence axis, slice(None) for head dim
-        k_block = pl.load(k_ref, (b_idx, h_idx, pl.Slice(j * block_kv, block_kv), slice(None)))
-        v_block = pl.load(v_ref, (b_idx, h_idx, pl.Slice(j * block_kv, block_kv), slice(None)))
+        # Load blocks (batch and head are already isolated by BlockSpec, so we use 0)
+        k_block = pl.load(k_ref, (0, 0, pl.Slice(j * block_kv, block_kv), slice(None)))
+        v_block = pl.load(v_ref, (0, 0, pl.Slice(j * block_kv, block_kv), slice(None)))
 
         # Matrix Multiply
         s_ij = mxu_matmul(q_block, jnp.swapaxes(k_block, 0, 1))

@@ -1,8 +1,8 @@
 """
 Pallas Flash Attention for Autoregressive Decoding (decoding.py)
 
-Updated: Fixed Pylance type-hint errors by correctly typing the program ID
-indices as jax.Array rather than int.
+Updated: BlockSpecs configured to isolate B/H dimensions to prevent scoped 
+VMEM limit errors. Removed `pl.program_id` tracking.
 """
 
 import jax
@@ -14,12 +14,8 @@ from typing import Tuple
 from pallas_flash.low_level.intrinsics import mxu_matmul, vpu_stable_exp, cast_to_fp32
 from pallas_flash.kernels.layout import pad_tensor, unpad_tensor
 
-# Standard blocking for streaming KV from HBM (matches v5e MXU alignment)
+# Standard blocking for streaming KV from HBM
 BLOCK_KV_DECODE = 128
-
-# -----------------------------------------------------------------------------
-# 1. Inner Decoding Pipeline Loop
-# -----------------------------------------------------------------------------
 
 def decoding_kv_loop(
     q_vec: jax.Array,
@@ -28,16 +24,10 @@ def decoding_kv_loop(
     padded_seq_len: int,
     original_seq_len: int,
     block_kv: int,
-    head_dim: int,
-    b_idx: jax.Array,
-    h_idx: jax.Array
+    head_dim: int
 ) -> Tuple[jax.Array, jax.Array, jax.Array]:
-    """
-    The pipelined inner loop specifically tailored for a 1D Query.
-    """
+    
     num_kv_steps = padded_seq_len // block_kv
-
-    # Accumulators in fp32 to prevent precision degradation
     o_acc = jnp.zeros((1, head_dim), dtype=jnp.float32)
     m_i = jnp.full((1, 1), -jnp.inf, dtype=jnp.float32)
     l_i = jnp.zeros((1, 1), dtype=jnp.float32)
@@ -45,19 +35,16 @@ def decoding_kv_loop(
     def kv_step(j: int, carry: Tuple[jax.Array, jax.Array, jax.Array]):
         o_acc_prev, m_prev, l_prev = carry
 
-        # 1. DMA Load KV Blocks from Cache (Directly from global HBM)
-        k_block = pl.load(k_ref, (b_idx, h_idx, pl.Slice(j * block_kv, block_kv), slice(None)))
-        v_block = pl.load(v_ref, (b_idx, h_idx, pl.Slice(j * block_kv, block_kv), slice(None)))
+        # Batch and Head are mapped to 0 by BlockSpec
+        k_block = pl.load(k_ref, (0, 0, pl.Slice(j * block_kv, block_kv), slice(None)))
+        v_block = pl.load(v_ref, (0, 0, pl.Slice(j * block_kv, block_kv), slice(None)))
 
-        # 2. Vector-Matrix Multiply
         s_ij = mxu_matmul(q_vec, jnp.swapaxes(k_block, 0, 1))
 
-        # Padding Masking: Set out-of-bounds logits to effectively -infinity
         kv_indices = j * block_kv + jnp.arange(block_kv)
         mask = kv_indices < original_seq_len
         s_ij = jnp.where(mask[None, :], s_ij, -1e10)
 
-        # 3. 1D Online Softmax (VPU)
         m_curr = jnp.maximum(m_prev, jnp.max(cast_to_fp32(s_ij), axis=-1, keepdims=True))
         p_ij = vpu_stable_exp(s_ij, m_curr)
         
@@ -65,7 +52,6 @@ def decoding_kv_loop(
         l_curr = l_prev * scale_factor + jnp.sum(p_ij, axis=-1, keepdims=True)
         o_acc_scaled = o_acc_prev * scale_factor
 
-        # 4. Update Output
         o_acc_curr = o_acc_scaled + cast_to_fp32(mxu_matmul(p_ij, v_block))
 
         return (o_acc_curr, m_curr, l_curr)
@@ -75,9 +61,6 @@ def decoding_kv_loop(
 
     return o_acc_normalized, m_final, l_final
 
-# -----------------------------------------------------------------------------
-# 2. Pallas Kernel Definition
-# -----------------------------------------------------------------------------
 
 def flash_decoding_kernel(
     q_ref, k_ref, v_ref, o_ref,
@@ -87,13 +70,6 @@ def flash_decoding_kernel(
     block_kv: int,
     head_dim: int
 ):
-    """
-    The fused decoding kernel executed on the v5e TensorCore.
-    """
-    # Grid coordinates required to extract from global K/V arrays
-    b_idx = pl.program_id(0)
-    h_idx = pl.program_id(1)
-
     q_vec = pl.load(q_ref, (0, 0, 0, slice(None)))
     q_vec_2d = q_vec.reshape(1, head_dim)
     
@@ -104,18 +80,12 @@ def flash_decoding_kernel(
         padded_seq_len=padded_seq_len,
         original_seq_len=original_seq_len,
         block_kv=block_kv,
-        head_dim=head_dim,
-        b_idx=b_idx,
-        h_idx=h_idx
+        head_dim=head_dim
     )
     
-    # Cast to bfloat16 and reshape to 1D to match the (0, 0, 0, slice) indexer
     o_acc_bf16 = o_acc_2d.astype(jnp.bfloat16).reshape(-1)
     pl.store(o_ref, (0, 0, 0, slice(None)), o_acc_bf16)
 
-# -----------------------------------------------------------------------------
-# 3. High-Level JAX Dispatch API
-# -----------------------------------------------------------------------------
 
 def get_decoding_specs(seq_len: int, head_dim: int):
     q_spec = pl.BlockSpec(
@@ -126,9 +96,17 @@ def get_decoding_specs(seq_len: int, head_dim: int):
         index_map=lambda b, h: (b, h, 0, 0), 
         block_shape=(1, 1, 1, head_dim)
     )
+    k_spec = pl.BlockSpec(
+        index_map=lambda b, h: (b, h, 0, 0),
+        block_shape=(1, 1, seq_len, head_dim)
+    )
+    v_spec = pl.BlockSpec(
+        index_map=lambda b, h: (b, h, 0, 0),
+        block_shape=(1, 1, seq_len, head_dim)
+    )
     
-    # Return None for KV specs to stream directly from HBM
-    return (q_spec, None, None), o_spec
+    return (q_spec, k_spec, v_spec), o_spec
+
 
 @jax.jit
 def pallas_flash_decoding(q: jax.Array, k_cache: jax.Array, v_cache: jax.Array) -> jax.Array:

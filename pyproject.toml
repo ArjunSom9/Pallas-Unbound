@@ -24,7 +24,7 @@ classifiers = [
 
 # Core dependencies required to run the kernel
 dependencies = [
-    "jax[tpu]>=0.4.23",        
+    "jax>=0.4.23",        
     "jaxlib>=0.4.23",
     "flax>=0.8.0",        
     "einops>=0.7.0",      
@@ -58,6 +58,9 @@ testpaths = [
     "tests",
 ]
 python_files = "test_*.py"
+markers = [
+    "stress: marks tests as heavy stress/memory tests (deselect with '-m \"not stress\"')"
+]
 
 # 2. Black Configuration
 [tool.black]
