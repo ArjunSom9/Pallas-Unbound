@@ -1,8 +1,8 @@
 """
 Pallas Flash Attention for Autoregressive Decoding (decoding.py)
 
-Updated: BlockSpecs configured to isolate B/H dimensions to prevent scoped 
-VMEM limit errors. Removed `pl.program_id` tracking.
+Fixed: Restored `BlockSpec` for K and V to resolve the PyTree mismatch. 
+Cleaned up unused `pl.program_id` calls.
 """
 
 import jax
@@ -14,7 +14,6 @@ from typing import Tuple
 from pallas_flash.low_level.intrinsics import mxu_matmul, vpu_stable_exp, cast_to_fp32
 from pallas_flash.kernels.layout import pad_tensor, unpad_tensor
 
-# Standard blocking for streaming KV from HBM
 BLOCK_KV_DECODE = 128
 
 def decoding_kv_loop(
@@ -35,11 +34,10 @@ def decoding_kv_loop(
     def kv_step(j: int, carry: Tuple[jax.Array, jax.Array, jax.Array]):
         o_acc_prev, m_prev, l_prev = carry
 
-        # Batch and Head are mapped to 0 by BlockSpec
         k_block = pl.load(k_ref, (0, 0, pl.Slice(j * block_kv, block_kv), slice(None)))
         v_block = pl.load(v_ref, (0, 0, pl.Slice(j * block_kv, block_kv), slice(None)))
 
-        s_ij = mxu_matmul(q_vec, jnp.swapaxes(k_block, 0, 1))
+        s_ij = mxu_matmul(q_vec, k_block, trans_rhs=True)
 
         kv_indices = j * block_kv + jnp.arange(block_kv)
         mask = kv_indices < original_seq_len
@@ -60,7 +58,6 @@ def decoding_kv_loop(
     o_acc_normalized = o_acc_final / l_final
 
     return o_acc_normalized, m_final, l_final
-
 
 def flash_decoding_kernel(
     q_ref, k_ref, v_ref, o_ref,
@@ -86,7 +83,6 @@ def flash_decoding_kernel(
     o_acc_bf16 = o_acc_2d.astype(jnp.bfloat16).reshape(-1)
     pl.store(o_ref, (0, 0, 0, slice(None)), o_acc_bf16)
 
-
 def get_decoding_specs(seq_len: int, head_dim: int):
     q_spec = pl.BlockSpec(
         index_map=lambda b, h: (b, h, 0, 0), 
@@ -104,9 +100,7 @@ def get_decoding_specs(seq_len: int, head_dim: int):
         index_map=lambda b, h: (b, h, 0, 0),
         block_shape=(1, 1, seq_len, head_dim)
     )
-    
     return (q_spec, k_spec, v_spec), o_spec
-
 
 @jax.jit
 def pallas_flash_decoding(q: jax.Array, k_cache: jax.Array, v_cache: jax.Array) -> jax.Array:

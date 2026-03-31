@@ -1,72 +1,67 @@
-# Assembly-Level Debugging & The "Copy Trap"
+# Assembly-Level Debugging & The "Copy Trap" on TPU v5e
 
-This document outlines the methodology for profiling and debugging Pallas-Flash kernels at the XLA assembly level on the TPU v5e.
+This document outlines the methodology for profiling and debugging Pallas-Flash kernels at the XLA assembly level on the TPU v5e architecture.
 
 ## 1. The TPU v5e Architecture and The "Copy Trap"
 
-The Matrix Multiply Unit (MXU) on the TPU v5e is a strict 128x128 systolic array. To achieve maximum Model FLOPs Utilization (MFU), memory fed into the MXU must perfectly align with these boundaries.
+The Matrix Multiply Unit (MXU) on the TPU v5e is a strict $128 \times 128$ systolic array. To achieve maximum Model FLOPs Utilization (MFU), memory fed into the MXU must perfectly align with these boundaries. 
 
-When you pass tensors of arbitrary shapes (e.g., Sequence Length = 1000, Head Dimension = 64) into standard `jax.numpy` operations, the XLA compiler attempts to be helpful. It silently injects padding instructions into the High-Level Optimizer (HLO) graph to make the math work on the hardware. 
+When tensors of arbitrary shapes (e.g., $N=1000, D=64$) are passed into standard `jax.numpy` operations, the XLA compiler silently injects padding instructions into the High-Level Optimizer (HLO) graph to make the math work on the hardware. 
 
 We call this the **"Copy Trap"**. 
 
-These implicit `copy`, `copy-start`, and `copy-done` instructions force the TPU to duplicate data in High Bandwidth Memory (HBM). Because the v5e is heavily constrained by its 819 GB/s HBM bandwidth, triggering the Copy Trap will immediately throttle your kernel and can easily cause Out-Of-Memory (OOM) errors.
-
-### The Pallas-Flash Solution
-Our kernel relies on the `pallas_flash.kernels.layout` module to do **explicit padding** in pure JAX *before* dispatching to the custom Pallas kernel. This allows us to guarantee to the XLA compiler that the inputs are perfectly aligned, forcing it to generate a "zero-copy" inner loop.
+These implicit `copy`, `copy-start`, and `copy-done` instructions force the TPU to duplicate data in High Bandwidth Memory (HBM). Because the v5e is heavily constrained by its 819 GB/s HBM bandwidth, triggering the Copy Trap immediately throttles your kernel and can cause Out-Of-Memory (OOM) errors on the 16 GiB chip.
 
 ---
 
 ## 2. Generating HLO Assembly Dumps
 
-To verify our kernel is zero-copy, we must inspect the compiled assembly. JAX provides an interface to dump the XLA HLO graphs.
+To verify our kernel is zero-copy and respects memory limits, we must inspect the compiled assembly.
 
-You can automatically generate these dumps using the provided shell script:
-`bash scripts/dump_hlo.sh benchmarks/baseline_mha.py`
+### Step 1: Trigger the Dump
+Use the project automation to clear previous artifacts and generate new ones:
+* **Command**: `make debug` (or `bash scripts/dump_hlo.sh`).
+* **Action**: This sets the `XLA_FLAGS` to `--xla_dump_to=/tmp/xla_dump` and runs the correctness tests.
 
-Alternatively, you can enable it programmatically in your Python code:
-```python
-from pallas_flash.profiling.xla_flags import enable_hlo_dump
-
-enable_hlo_dump("/tmp/xla_dump")
-# Your JIT-compiled function call here
-```
-
-### Where to Look
-The compiler will dump dozens of `.txt` files representing different optimization passes. You want to look at the file generated *last*, typically named something like:
-`module_xxxx.after_optimizations.txt`
+### Step 2: Locate the Final Graph
+The compiler dumps dozens of `.txt` files representing different optimization passes. For accurate performance analysis, you want the file generated *last*, typically representing the graph after all optimizations and buffer assignments:
+* **Filename**: `module_xxxx.after_optimizations_after_buffer_assignment.txt`
 
 ---
 
 ## 3. Reading the HLO Dump
 
-HLO (High-Level Optimizer) assembly is a static single assignment (SSA) representation. Here is what you are looking for.
+HLO assembly is a static single assignment (SSA) representation of the hardware execution graph.
 
-### ❌ Bad Assembly (The Copy Trap Triggered)
-If your `layout.py` logic failed or your `BlockSpec` in `tiling.py` is misaligned, you will see operations like this injected into your graph:
-
+### ❌ Fatal: The Synchronous Copy Trap
+Synchronous `copy` instructions are the primary indicator of failure. They signify the hardware is stalling to physically reshuffle memory in HBM.
 ```hlo
 %copy.1 = f32[1024,128]{1,0} copy(f32[1024,128]{1,0} %custom-call.2)
-%copy-start.3 = (f32[1024,128]{1,0}, u32[0]{0}) copy-start(f32[1024,128]{1,0} %copy.1)
-%copy-done.4 = f32[1024,128]{1,0} copy-done((f32[1024,128]{1,0}, u32[0]{0}) %copy-start.3)
 ```
-*Diagnosis:* The compiler is wasting precious HBM bandwidth duplicating memory asynchronously. 
 
-### ✅ Good Assembly (Compute Bound)
-A perfectly aligned Pallas kernel will compile down to native instructions without implicit data movement:
+### ⚠️ Warning: Standard DMA Setups
+Asynchronous `copy-start` and `copy-done` pairs are used for DMA transfers. While excessive async copies indicate stalls, small counts (typically $\le 4$) are standard for initial parameter loading and parameter setup.
 
+### ✅ Success: Zero-Copy Compute
+A perfectly optimized kernel feeds directly into MXU `dot` operations without intermediate memory moves.
 ```hlo
-%custom-call.1 = f32[1024,128]{1,0} custom-call(f32[1024,128]{1,0} %prm.1, ...), custom_call_target="pallas_call"
-%dot.2 = f32[1024,128]{1,0} dot(f32[1024,128]{1,0} %custom-call.1, f32[128,128]{1,0} %prm.2), lhs_contracting_dims={1}, rhs_contracting_dims={0}
+%dot.2 = f32[1024,128]{1,0} dot(f32[1024,128]{1,0} %custom-call.1, ...), lhs_contracting_dims={1}
 ```
-*Diagnosis:* The kernel is feeding directly into the MXU (`dot` operations) without intermediate copies.
 
 ---
 
-## 4. Automated Analysis
+## 4. Hardware-Specific Debugging Cases
 
-Manually reading 10,000 lines of HLO assembly is tedious. Use the provided analyzer script to scan the dumps automatically:
+### The `swapaxes` Physical Copy
+Using `jnp.swapaxes` on VMEM-resident blocks can trigger physical memory copies within the vector registers. The `pallas_flash` implementation avoids this by using `trans_rhs=True` in the low-level `mxu_matmul` intrinsic. This utilizes `dot_general` contracting dimensions to perform the transpose logically rather than physically.
 
-`python3 profiling/hlo_analyzer.py --dir=/tmp/xla_dump`
+### The 16 MiB Scoped VMEM Limit
+The TPU v5e compiler has a strict **16 MiB limit** for any single VMEM allocation managed via a `BlockSpec`. For massive sequence lengths (e.g., $N=65536$), requesting the entire KV sequence in one block will cause an `XlaRuntimeError`. The solution is to utilize the `pipeline_kv_loop` to stream small chunks from HBM manually, keeping the active VMEM footprint minimal.
 
-The script will tally all instances of `copy`, `copy-start`, and `dynamic-slice`. If it reports `0`, you have successfully achieved a zero-copy layout.
+---
+
+## 5. Automated Analysis
+
+Use the provided tools to scan and verify your kernel artifacts:
+* **HLO Analyzer**: `make analyze` parses dumps for "Copy Trap" instructions like `copy` and `dynamic-slice`.
+* **Trace Viewer**: `python3 profiling/trace_viewer.py --dir=/tmp/pallas_trace` identifies "pipeline bubbles" where compute stalls for DMA loads.

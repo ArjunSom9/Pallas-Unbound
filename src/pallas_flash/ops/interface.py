@@ -1,8 +1,8 @@
 """
 High-Level Dispatch Interface (interface.py)
 
-Fixed: Mapped K and V to strictly isolate the current batch and head, 
-preventing the compiler from allocating all heads into scoped VMEM.
+Fixed: Restored `BlockSpec` for K and V to resolve the PyTree mismatch. 
+Casted to bfloat16 early to prevent XLA from injecting async setup copies.
 """
 
 import jax
@@ -19,6 +19,11 @@ BLOCK_KV = 128
 
 @jax.jit
 def pallas_flash_attention(q: jax.Array, k: jax.Array, v: jax.Array) -> jax.Array:
+    # 0. Early cast to prevent late-stage XLA setup copies
+    q = q.astype(jnp.bfloat16)
+    k = k.astype(jnp.bfloat16)
+    v = v.astype(jnp.bfloat16)
+    
     # 1. Capture original metadata
     orig_batch, orig_heads, orig_seq, orig_dim = q.shape
     
@@ -36,13 +41,11 @@ def pallas_flash_attention(q: jax.Array, k: jax.Array, v: jax.Array) -> jax.Arra
     
     # 3. Kernel Configuration
     scale = 1.0 / jnp.sqrt(head_dim_pad)
-    q_scaled = (q_pad * scale).astype(jnp.bfloat16)
+    q_scaled = q_pad * scale
     
     grid = (batch_size, num_heads, padded_seq_q // BLOCK_Q)
     
-    # 4. Define BlockSpecs
-    # We explicitly map the batch and head dimensions. This guarantees the 
-    # kernel only receives a (1, 1, N, 128) slice, keeping scoped VMEM under 16MB.
+    # 4. Define BlockSpecs (Restored to match inputs PyTree perfectly)
     in_specs = (
         pl.BlockSpec(
             index_map=lambda b, h, q_idx: (b, h, q_idx, 0), 
@@ -78,5 +81,5 @@ def pallas_flash_attention(q: jax.Array, k: jax.Array, v: jax.Array) -> jax.Arra
         grid=grid
     )
     
-    o_pad = pallas_op(q_scaled, k_pad.astype(jnp.bfloat16), v_pad.astype(jnp.bfloat16))
+    o_pad = pallas_op(q_scaled, k_pad, v_pad)
     return unpad_tensor(o_pad, q_orig_shape)
