@@ -1,7 +1,8 @@
 """
 Pallas FlashAttention Training Kernel (attention.py)
 
-Fixed: Using slice(None) for full dimensions and reshape for rank-safety.
+Fixed: Now explicitly queries the program Grid ID to manually index into the
+global HBM Key and Value References.
 """
 
 import jax.numpy as jnp
@@ -16,7 +17,11 @@ def flash_attention_kernel(
     block_kv: int,
     head_dim: int
 ):
-    # Load Q block using standard Python slices
+    # Retrieve the current grid coordinates to index into the global HBM K/V arrays
+    b_idx = pl.program_id(0)
+    h_idx = pl.program_id(1)
+    
+    # Load Q block using standard Python slices (Q is still mapped to VMEM via BlockSpec)
     q_block = pl.load(q_ref, (0, 0, slice(None), slice(None)))
     # Ensure rank is normalized for the pipeline
     q_block_2d = q_block.reshape(-1, head_dim)
@@ -30,8 +35,8 @@ def flash_attention_kernel(
         original_seq_len=original_seq_len,
         block_kv=block_kv,
         head_dim=head_dim,
-        b_idx=0, 
-        h_idx=0  
+        b_idx=b_idx, 
+        h_idx=h_idx  
     )
     
     # Cast to match HBM ref dtype and store

@@ -1,10 +1,8 @@
 """
 Pallas Flash Attention for Autoregressive Decoding (decoding.py)
 
-Updated: Used explicit keyword arguments for BlockSpec to resolve Pylance 
-type-checking errors and ensure cross-version JAX compatibility.
-Added sequence padding masking to prevent zeros in padding from inflating 
-the softmax denominator.
+Updated: Fixed Pylance type-hint errors by correctly typing the program ID
+indices as jax.Array rather than int.
 """
 
 import jax
@@ -31,8 +29,8 @@ def decoding_kv_loop(
     original_seq_len: int,
     block_kv: int,
     head_dim: int,
-    b_idx: int,
-    h_idx: int
+    b_idx: jax.Array,
+    h_idx: jax.Array
 ) -> Tuple[jax.Array, jax.Array, jax.Array]:
     """
     The pipelined inner loop specifically tailored for a 1D Query.
@@ -47,7 +45,7 @@ def decoding_kv_loop(
     def kv_step(j: int, carry: Tuple[jax.Array, jax.Array, jax.Array]):
         o_acc_prev, m_prev, l_prev = carry
 
-        # 1. DMA Load KV Blocks from Cache
+        # 1. DMA Load KV Blocks from Cache (Directly from global HBM)
         k_block = pl.load(k_ref, (b_idx, h_idx, pl.Slice(j * block_kv, block_kv), slice(None)))
         v_block = pl.load(v_ref, (b_idx, h_idx, pl.Slice(j * block_kv, block_kv), slice(None)))
 
@@ -92,6 +90,10 @@ def flash_decoding_kernel(
     """
     The fused decoding kernel executed on the v5e TensorCore.
     """
+    # Grid coordinates required to extract from global K/V arrays
+    b_idx = pl.program_id(0)
+    h_idx = pl.program_id(1)
+
     q_vec = pl.load(q_ref, (0, 0, 0, slice(None)))
     q_vec_2d = q_vec.reshape(1, head_dim)
     
@@ -103,8 +105,8 @@ def flash_decoding_kernel(
         original_seq_len=original_seq_len,
         block_kv=block_kv,
         head_dim=head_dim,
-        b_idx=0,
-        h_idx=0
+        b_idx=b_idx,
+        h_idx=h_idx
     )
     
     # Cast to bfloat16 and reshape to 1D to match the (0, 0, 0, slice) indexer
@@ -116,21 +118,17 @@ def flash_decoding_kernel(
 # -----------------------------------------------------------------------------
 
 def get_decoding_specs(seq_len: int, head_dim: int):
-    # Using explicit keyword arguments to satisfy Pylance type checking
     q_spec = pl.BlockSpec(
         index_map=lambda b, h: (b, h, 0, 0), 
         block_shape=(1, 1, 1, head_dim)
-    )
-    kv_spec = pl.BlockSpec(
-        index_map=lambda b, h: (b, h, 0, 0), 
-        block_shape=(1, 1, seq_len, head_dim)
     )
     o_spec = pl.BlockSpec(
         index_map=lambda b, h: (b, h, 0, 0), 
         block_shape=(1, 1, 1, head_dim)
     )
     
-    return (q_spec, kv_spec, kv_spec), o_spec
+    # Return None for KV specs to stream directly from HBM
+    return (q_spec, None, None), o_spec
 
 @jax.jit
 def pallas_flash_decoding(q: jax.Array, k_cache: jax.Array, v_cache: jax.Array) -> jax.Array:

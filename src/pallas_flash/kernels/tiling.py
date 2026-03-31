@@ -40,7 +40,7 @@ def get_attention_specs(
     seq_len: int,
     head_dim: int,
     block_q: int = BLOCK_Q
-) -> Tuple[Tuple[int, int, int], Tuple[pl.BlockSpec, pl.BlockSpec, pl.BlockSpec], pl.BlockSpec]:
+) -> Tuple[Tuple[int, int, int], Tuple[pl.BlockSpec, Any, Any], pl.BlockSpec]:
     """
     Generates the Pallas Grid and BlockSpecs for the v5e Attention Kernel.
 
@@ -57,7 +57,7 @@ def get_attention_specs(
 
     Returns:
         grid: A tuple defining the 3D execution grid.
-        in_specs: BlockSpecs for Q, K, and V inputs.
+        in_specs: BlockSpecs for Q, K, and V inputs. (K & V are None to stream from HBM).
         out_specs: BlockSpec for the Output tensor.
     """
     
@@ -76,16 +76,6 @@ def get_attention_specs(
         block_shape=(1, 1, block_q, head_dim)
     )
 
-    # --- Key and Value Specs ---
-    # K and V are NOT sliced along the sequence dimension by the grid.
-    # We pass the full sequence (1, 1, seq_len, D) as a reference to the kernel.
-    # The kernel will manually stream this from HBM using an inner loop 
-    # and pl.load() calls with chunks of size BLOCK_KV.
-    kv_spec = pl.BlockSpec(
-        index_map=lambda b, h, q_idx: (b, h, 0, 0),
-        block_shape=(1, 1, seq_len, head_dim)
-    )
-
     # --- Output Spec ---
     # The output accumulator O has the exact same blocking pattern as Q.
     o_spec = pl.BlockSpec(
@@ -93,7 +83,8 @@ def get_attention_specs(
         block_shape=(1, 1, block_q, head_dim)
     )
 
-    in_specs = (q_spec, kv_spec, kv_spec)
+    # Setting K and V specs to None passes them to the kernel as global HBM references.
+    in_specs = (q_spec, None, None)
     out_specs = o_spec
 
     return grid, in_specs, out_specs

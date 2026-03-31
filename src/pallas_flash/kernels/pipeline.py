@@ -1,7 +1,8 @@
 """
 Pipelined Key-Value Execution Loop (pipeline.py)
 
-Fixed: Using pl.Slice for sliding windows and slice(None) for static ones.
+Fixed: Updated type hints for b_idx and h_idx from `int` to `jax.Array`
+to accurately reflect that pl.program_id() returns a dynamic scalar tensor.
 """
 
 import jax
@@ -18,8 +19,8 @@ def pipeline_kv_loop(
     original_seq_len: int,
     block_kv: int,
     head_dim: int,
-    b_idx: int,
-    h_idx: int
+    b_idx: jax.Array,
+    h_idx: jax.Array
 ) -> Tuple[jax.Array, jax.Array, jax.Array]:
     block_q = q_block.shape[0]
     num_kv_steps = padded_seq_len // block_kv
